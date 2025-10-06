@@ -42,7 +42,7 @@ def collect_and_save_skater_data(seasons):
     
     # Save to CSV
     if all_skaters:
-        filename = f"skater_data_{seasons[0]}_{seasons[-1]}.csv"
+        filename = f"skater_data_with_faceoffs_{seasons[0]}_{seasons[-1]}.csv"
         print(f"\nSaving {len(all_skaters)} skater records to {filename}...")
         
         # Define CSV columns
@@ -52,7 +52,7 @@ def collect_and_save_skater_data(seasons):
             'power_play_goals', 'power_play_points', 'short_handed_goals',
             'short_handed_points', 'game_winning_goals', 'shots',
             'shooting_percentage', 'time_on_ice', 'hits', 'blocked_shots',
-            'face_off_percentage'
+            'face_off_percentage', 'face_off_wins'
         ]
         
         with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
@@ -182,7 +182,7 @@ def main():
     logging.basicConfig(level=logging.WARNING)  # Reduce noise
     
     # Define seasons to collect
-    seasons = ["2023", "2024", "2025"]
+    seasons = ["2022", "2023", "2024", "2025"]
     
     print(f"Collecting data for seasons: {', '.join(seasons)}")
     print("This may take several minutes due to rate limiting...")

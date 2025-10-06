@@ -110,11 +110,12 @@ class HockeyReferenceScraper:
                     'short_handed_points': self._safe_int(cells[14].get_text(strip=True)) if len(cells) > 14 else 0,
                     'game_winning_goals': self._safe_int(cells[15].get_text(strip=True)) if len(cells) > 15 else 0,
                     'shots': self._safe_int(cells[16].get_text(strip=True)) if len(cells) > 16 else 0,
-                    'shooting_percentage': self._safe_float(cells[17].get_text(strip=True)) if len(cells) > 17 else 0.0,
-                    'time_on_ice': cells[18].get_text(strip=True) if len(cells) > 18 else '0:00',
-                    'hits': self._safe_int(cells[19].get_text(strip=True)) if len(cells) > 19 else 0,
-                    'blocked_shots': self._safe_int(cells[20].get_text(strip=True)) if len(cells) > 20 else 0,
-                    'face_off_percentage': self._safe_float(cells[21].get_text(strip=True)) if len(cells) > 21 else 0.0,
+                    'shooting_percentage': self._safe_float(cells[19].get_text(strip=True)) if len(cells) > 19 else 0.0,
+                    'time_on_ice': cells[21].get_text(strip=True) if len(cells) > 21 else '0:00',
+                    'hits': self._safe_int(cells[27].get_text(strip=True)) if len(cells) > 27 else 0,
+                    'blocked_shots': self._safe_int(cells[26].get_text(strip=True)) if len(cells) > 26 else 0,
+                    'face_off_percentage': self._safe_float(cells[25].get_text(strip=True)) if len(cells) > 25 else 0.0,
+                    'face_off_wins': self._safe_int(cells[23].get_text(strip=True)) if len(cells) > 23 else 0,
                     'season': season
                 }
                 
