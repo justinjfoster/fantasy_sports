@@ -147,6 +147,17 @@ fantasy_sports/
 └── README.md                             # This file
 ```
 
+## 🔗 Fantrax
+
+The league moved from Yahoo to Fantrax. Fantrax has no official public API, but
+its internal endpoint can be reached with your own login session. Setup,
+authentication, known methods and caveats are in **[FANTRAX.md](FANTRAX.md)**.
+
+```bash
+python scripts/fantrax_login.py               # once, saves session cookies
+python scripts/fantrax_explore.py <league_id> # teams, standings, rosters
+```
+
 ## 🎯 League Settings Supported
 
 This tool is designed for head-to-head fantasy hockey leagues with the following settings:

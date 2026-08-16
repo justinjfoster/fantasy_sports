@@ -40,6 +40,11 @@ databases/*.sqlite3
 # CSV data files (optional - uncomment if you don't want to track data)
 # data/*.csv
 
+# Fantrax session cookies. Anyone holding this file can act as you on
+# Fantrax, so it must never be committed.
+*.cookie
+fantraxloggedin.cookie
+
 # Logs
 *.log
 
