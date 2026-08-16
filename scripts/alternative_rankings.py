@@ -6,12 +6,19 @@ This script implements several different ranking approaches to evaluate
 players more effectively for fantasy hockey.
 """
 
+import os
+import sys
+
 import pandas as pd
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.rankings_data import LATEST_SEASON, load_goalies, load_skaters, rankings_path
+
+
 def load_data():
-    """Load the corrected 2025 skater data."""
-    return pd.read_csv('skater_data_2025_corrected.csv')
+    """Load skater data for the most recent scraped season."""
+    return load_skaters()
 
 def weighted_ranking_system(df):
     """

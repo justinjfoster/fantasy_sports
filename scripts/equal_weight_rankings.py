@@ -6,12 +6,19 @@ This script implements ranking systems optimized for leagues where
 all categories are equally weighted.
 """
 
+import os
+import sys
+
 import pandas as pd
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.rankings_data import LATEST_SEASON, load_goalies, load_skaters, rankings_path
+
+
 def load_data():
-    """Load the corrected 2025 skater data."""
-    return pd.read_csv('skater_data_2025_corrected.csv')
+    """Load skater data for the most recent scraped season."""
+    return load_skaters()
 
 def percentile_ranking_system(df):
     """
@@ -227,7 +234,7 @@ def save_recommended_rankings(df):
     output_df = df_percentile[output_columns].sort_values('percentile_rank')
     
     # Save to CSV
-    output_file = 'equal_weight_skater_rankings_2025.csv'
+    output_file = rankings_path(f'equal_weight_skater_rankings_{LATEST_SEASON}.csv')
     output_df.to_csv(output_file, index=False)
     print(f"✓ Recommended equal weight rankings saved to: {output_file}")
     
@@ -285,7 +292,7 @@ def main():
     print("   Use the PERCENTILE SYSTEM as your primary ranking")
     print("   - Perfect for equal weight leagues")
     print("   - Most intuitive and balanced")
-    print("   - Saved as 'equal_weight_skater_rankings_2025.csv'")
+    print(f"   - Saved as 'equal_weight_skater_rankings_{LATEST_SEASON}.csv'")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,9 @@
+# Normalise line endings so the repo stays clean across Windows and macOS.
+# Without this, a file saved on one machine can show up as an entire-file
+# diff on the other.
+* text=auto
+
+*.py   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.csv  text eol=lf

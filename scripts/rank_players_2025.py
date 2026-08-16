@@ -6,16 +6,22 @@ This script ranks skaters and goalies across multiple categories and calculates
 overall rankings based on cumulative rank scores.
 """
 
+import os
+import sys
+
 import pandas as pd
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.rankings_data import LATEST_SEASON, load_goalies, load_skaters, rankings_path
+
+
 def rank_skaters_2025():
-    """Rank skaters across 7 categories for 2025 season."""
-    print("Ranking skaters for 2025 season...")
-    
-    # Load the corrected 2025 data
-    skaters_2025 = pd.read_csv('skater_data_2025_corrected.csv')
-    print(f"Found {len(skaters_2025)} skaters for 2025 season")
+    """Rank skaters across 7 categories for the most recent season."""
+    print(f"Ranking skaters for {LATEST_SEASON} season...")
+
+    skaters_2025 = load_skaters()
+    print(f"Found {len(skaters_2025)} skaters for {LATEST_SEASON} season")
     
     # Define the 7 categories for ranking
     categories = ['goals', 'assists', 'power_play_points', 'hits', 'blocked_shots', 'face_off_wins', 'shots']
@@ -43,7 +49,7 @@ def rank_skaters_2025():
     ranking_data = ranking_data[output_columns]
     
     # Save to CSV
-    output_file = 'skater_rankings_2025.csv'
+    output_file = rankings_path(f'skater_rankings_{LATEST_SEASON}.csv')
     ranking_data.to_csv(output_file, index=False)
     print(f"✓ Skater rankings saved to: {output_file}")
     
@@ -54,15 +60,12 @@ def rank_skaters_2025():
     return ranking_data
 
 def rank_goalies_2025():
-    """Rank goalies across 4 categories for 2025 season."""
-    print("\nRanking goalies for 2025 season...")
-    
-    # Load the data
-    df = pd.read_csv('data/goalie_data_2022_2025.csv')
-    
-    # Filter for 2025 data only
-    goalies_2025 = df[df['season'] == 2025].copy()
-    print(f"Found {len(goalies_2025)} goalies for 2025 season")
+    """Rank goalies across 4 categories for the most recent season."""
+    print(f"\nRanking goalies for {LATEST_SEASON} season...")
+
+    # Load the data (already filtered to the latest season)
+    goalies_2025 = load_goalies().copy()
+    print(f"Found {len(goalies_2025)} goalies for {LATEST_SEASON} season")
     
     # Define the 4 categories for ranking
     # Note: GAA is inverted (lower is better), save_percentage is normal (higher is better)
@@ -96,7 +99,7 @@ def rank_goalies_2025():
     ranking_data = ranking_data[output_columns]
     
     # Save to CSV
-    output_file = 'goalie_rankings_2025.csv'
+    output_file = rankings_path(f'goalie_rankings_{LATEST_SEASON}.csv')
     ranking_data.to_csv(output_file, index=False)
     print(f"✓ Goalie rankings saved to: {output_file}")
     
@@ -136,9 +139,9 @@ def show_ranking_summary(skaters_df, goalies_df):
                 print(f"  {category}: {top_goalie[col]}")
 
 def main():
-    """Main function to rank players for 2025 season."""
+    """Main function to rank players for the most recent season."""
     print("=" * 60)
-    print("PLAYER RANKING FOR 2025 SEASON")
+    print(f"PLAYER RANKING FOR {LATEST_SEASON} SEASON")
     print("=" * 60)
     print("Ranking skaters across 7 categories and goalies across 4 categories")
     print("Using dense ranking method (ties get same rank)")
@@ -158,8 +161,8 @@ def main():
         print("RANKING COMPLETE!")
         print(f"{'='*60}")
         print("Files created:")
-        print("  - skater_rankings_2025.csv")
-        print("  - goalie_rankings_2025.csv")
+        print(f"  - skater_rankings_{LATEST_SEASON}.csv")
+        print(f"  - goalie_rankings_{LATEST_SEASON}.csv")
         print("\nYou can now analyze the rankings or import into Excel/Google Sheets.")
         
     except FileNotFoundError as e:

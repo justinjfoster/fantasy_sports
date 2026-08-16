@@ -6,12 +6,19 @@ This script implements percentile-based ranking for goalies optimized for league
 all categories (wins, saves, save percentage, goals against average) are equally weighted.
 """
 
+import os
+import sys
+
 import pandas as pd
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.rankings_data import LATEST_SEASON, load_goalies, load_skaters, rankings_path
+
+
 def load_goalie_data():
-    """Load the 2025 goalie data."""
-    return pd.read_csv('data/goalie_data_2022_2025.csv')
+    """Load goalie data for the most recent scraped season."""
+    return load_goalies()
 
 def percentile_goalie_ranking_system(df):
     """
@@ -24,9 +31,9 @@ def percentile_goalie_ranking_system(df):
     print("PERCENTILE-BASED GOALIE RANKING (RECOMMENDED FOR EQUAL WEIGHT)")
     print("="*70)
     
-    # Filter for 2025 data only
-    goalies_2025 = df[df['season'] == 2025].copy()
-    print(f"Found {len(goalies_2025)} goalies for 2025 season")
+    # Already filtered to the latest season by load_goalie_data()
+    goalies_2025 = df.copy()
+    print(f"Found {len(goalies_2025)} goalies for {LATEST_SEASON} season")
     
     # Define the 4 categories for ranking
     categories = ['wins', 'saves', 'save_percentage']
@@ -68,8 +75,8 @@ def z_score_goalie_ranking_system(df):
     print("\nZ-SCORE BASED GOALIE RANKING")
     print("="*70)
     
-    # Filter for 2025 data only
-    goalies_2025 = df[df['season'] == 2025].copy()
+    # Already filtered to the latest season by load_goalie_data()
+    goalies_2025 = df.copy()
     
     categories = ['wins', 'saves', 'save_percentage']
     inverted_categories = ['goals_against_average']  # Lower GAA is better
@@ -114,8 +121,8 @@ def normalized_goalie_ranking_system(df):
     print("\nNORMALIZED GOALIE RANKING")
     print("="*70)
     
-    # Filter for 2025 data only
-    goalies_2025 = df[df['season'] == 2025].copy()
+    # Already filtered to the latest season by load_goalie_data()
+    goalies_2025 = df.copy()
     
     categories = ['wins', 'saves', 'save_percentage']
     inverted_categories = ['goals_against_average']  # Lower GAA is better
@@ -204,8 +211,8 @@ def save_recommended_goalie_rankings(df):
     print("SAVING RECOMMENDED GOALIE RANKINGS")
     print("="*70)
     
-    # Filter for 2025 data only
-    goalies_2025 = df[df['season'] == 2025].copy()
+    # Already filtered to the latest season by load_goalie_data()
+    goalies_2025 = df.copy()
     
     # Use percentile system as the recommended one
     categories = ['wins', 'saves', 'save_percentage']
@@ -232,7 +239,7 @@ def save_recommended_goalie_rankings(df):
     output_df = df_percentile[output_columns].sort_values('percentile_rank')
     
     # Save to CSV
-    output_file = 'equal_weight_goalie_rankings_2025.csv'
+    output_file = rankings_path(f'equal_weight_goalie_rankings_{LATEST_SEASON}.csv')
     output_df.to_csv(output_file, index=False)
     print(f"✓ Recommended equal weight goalie rankings saved to: {output_file}")
     
@@ -249,8 +256,8 @@ def show_goalie_insights(df):
     print("GOALIE PERFORMANCE INSIGHTS")
     print("="*70)
     
-    # Filter for 2025 data only
-    goalies_2025 = df[df['season'] == 2025].copy()
+    # Already filtered to the latest season by load_goalie_data()
+    goalies_2025 = df.copy()
     
     print(f"Total goalies analyzed: {len(goalies_2025)}")
     print(f"Minimum games played: {goalies_2025['games_played'].min()}")
@@ -327,7 +334,7 @@ def main():
     print("   - Perfect for equal weight leagues")
     print("   - Most intuitive and balanced")
     print("   - Properly handles GAA inversion")
-    print("   - Saved as 'equal_weight_goalie_rankings_2025.csv'")
+    print(f"   - Saved as 'equal_weight_goalie_rankings_{LATEST_SEASON}.csv'")
 
 if __name__ == "__main__":
     main()

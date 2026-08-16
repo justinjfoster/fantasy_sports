@@ -5,8 +5,8 @@ A comprehensive Python tool to help you analyze NHL player statistics and make i
 ## 🏒 Features
 
 - **Real Data Collection**: Scrapes NHL player statistics from Hockey-Reference.com
-- **Multi-Season Analysis**: Collects data from 2022, 2023, 2024, and 2025 seasons
-- **Face-off Wins Data**: Includes face-off wins for skaters (newly added)
+- **Multi-Season Analysis**: Collects data from 2023, 2024, 2025, and 2026 seasons
+- **Face-off Wins Data**: Includes face-off wins for skaters
 - **Advanced Ranking Systems**: Multiple ranking approaches for different league types
 - **Equal Weight Rankings**: Perfect for leagues where all categories are equally weighted
 - **CSV Export**: Exports data and rankings in CSV format for easy analysis
@@ -42,9 +42,21 @@ pip install -r requirements.txt
 
 ### 2. Collect Real NHL Data
 ```bash
+# Default: the last four seasons
 python collect_multi_year_data.py
+
+# Or name the seasons explicitly
+python collect_multi_year_data.py 2026
+python collect_multi_year_data.py 2023 2024 2025 2026
 ```
-This will collect data from 2022-2025 seasons and save as CSV files in the `data/` folder. The data is automatically cleaned to remove duplicate entries for traded players.
+Hockey-Reference labels a season by the year it **ends**, so `2026` means the
+2025-26 season. Output lands in `data/`, and duplicate entries for traded
+players are removed automatically (only the combined `2TM`/`3TM` row is kept).
+
+Every cell is located by its `data-stat` attribute rather than by column
+position, and the scraper aborts with an error if Hockey-Reference stops
+publishing a column it depends on. An earlier position-based version silently
+mapped most categories to the wrong statistic.
 
 ### 3. Generate Rankings (NEW!)
 For **equal weight leagues** (all categories weighted equally):
@@ -77,8 +89,8 @@ python scripts/equal_weight_rankings.py
 ```
 
 **Output Files:**
-- `rankings/equal_weight_skater_rankings_2025.csv`
-- `rankings/equal_weight_goalie_rankings_2025.csv`
+- `rankings/equal_weight_skater_rankings_2026.csv`
+- `rankings/equal_weight_goalie_rankings_2026.csv`
 
 ### Alternative Ranking Systems
 Multiple approaches for different league types:
@@ -103,16 +115,16 @@ fantasy_sports/
 │   ├── data_fetcher.py                    # NHL API data fetching
 │   ├── database.py                        # SQLite database operations
 │   ├── data_collector.py                  # Orchestrates data collection
+│   ├── rankings_data.py                   # Shared loading for ranking scripts
 │   └── hockey_reference_scraper.py        # Web scraper for real data
 ├── data/                                  # CSV data files (cleaned, no duplicates)
-│   ├── skater_data_with_faceoffs_2022_2025.csv  # 4,221 skater records (cleaned)
-│   ├── goalie_data_2022_2025.csv         # 426 goalie records (cleaned)
-│   └── backup files                      # Automatic backups with timestamps
+│   ├── skater_data_2023_2026.csv         # 4,141 skater records (cleaned)
+│   └── goalie_data_2023_2026.csv         # 406 goalie records (cleaned)
 ├── rankings/                              # Generated ranking files
-│   ├── equal_weight_skater_rankings_2025.csv
-│   ├── equal_weight_goalie_rankings_2025.csv
-│   ├── skater_rankings_2025.csv
-│   └── goalie_rankings_2025.csv
+│   ├── equal_weight_skater_rankings_2026.csv
+│   ├── equal_weight_goalie_rankings_2026.csv
+│   ├── skater_rankings_2026.csv
+│   └── goalie_rankings_2026.csv
 ├── scripts/                               # Ranking and analysis scripts
 │   ├── rank_players_2025.py              # Main ranking script
 │   ├── equal_weight_rankings.py          # Equal weight skater rankings
@@ -155,23 +167,28 @@ This tool is designed for head-to-head fantasy hockey leagues with the following
 
 ## 📈 Sample Analysis Output
 
-### Top Skaters (2025) - Equal Weight Rankings
-1. **Vincent Trocheck** (C) - 646.6 points - Elite face-off specialist
-2. **Sam Reinhart** (C) - 645.0 points - Exceptional goal scorer
-3. **J.T. Miller** (C) - 643.4 points - Well-rounded performer
-4. **Mark Scheifele** (C) - 640.2 points - Elite offensive production
-5. **Aleksander Barkov** (C) - 634.4 points - Strong two-way center
+### Top Skaters (2026) - Equal Weight Percentile Rankings
+1. **Mika Zibanejad** (C) - 638.6 points - Contributes in every category
+2. **Tim Stützle** (LW) - 632.1 points - Scoring plus peripherals
+3. **Macklin Celebrini** (F) - 629.5 points - Elite young producer
+4. **Nick Suzuki** (C) - 629.5 points - Power play and face-off volume
+5. **Tage Thompson** (C) - 625.7 points - Goals and shot volume
 
-### Top Goalies (2025) - Equal Weight Rankings
-1. **Connor Hellebuyck** - 381.6 points - Elite across all categories
-2. **Andrei Vasilevskiy** - 377.7 points - Most saves in league
-3. **Filip Gustavsson** - 358.3 points - Strong balance
-4. **Darcy Kuemper** - 354.4 points - Excellent GAA
-5. **Jake Oettinger** - 348.5 points - High win total
+Note that the percentile system rewards breadth over peak value, so a player
+who is very good in all seven categories outranks one who is historically
+dominant in four. Connor McDavid tops the **z-score** system instead. Compare
+them with `python scripts/alternative_rankings.py` before settling on a board.
+
+### Top Goalies (2026) - Equal Weight Rankings
+1. **Andrei Vasilevskiy** - 368.9 points - Most wins, strong across the board
+2. **Logan Thompson** - 366.8 points - Save volume and percentage
+3. **Scott Wedgewood** - 358.2 points - Best SV% and GAA
+4. **Igor Shesterkin** - 341.8 points - Elite rate stats
+5. **Daniel Vladař** - 335.2 points - Strong GAA
 
 ### Data Cleaning Results
-- **Skaters**: 4,970 → 4,221 records (removed 749 duplicates)
-- **Goalies**: 472 → 426 records (removed 46 duplicates)
+- **Skaters**: 4,882 → 4,141 records (removed 741 duplicates)
+- **Goalies**: 442 → 406 records (removed 36 duplicates)
 - **Result**: Each player appears only once per season with complete combined statistics
 
 ## 🔧 Customization
@@ -215,12 +232,12 @@ The tool automatically handles duplicate entries for traded players:
 import pandas as pd
 
 # Load the cleaned data (no duplicates)
-skaters = pd.read_csv('data/skater_data_with_faceoffs_2022_2025.csv')
-goalies = pd.read_csv('data/goalie_data_2022_2025.csv')
+skaters = pd.read_csv('data/skater_data_2023_2026.csv')
+goalies = pd.read_csv('data/goalie_data_2023_2026.csv')
 
 # Load rankings
-skater_rankings = pd.read_csv('rankings/equal_weight_skater_rankings_2025.csv')
-goalie_rankings = pd.read_csv('rankings/equal_weight_goalie_rankings_2025.csv')
+skater_rankings = pd.read_csv('rankings/equal_weight_skater_rankings_2026.csv')
+goalie_rankings = pd.read_csv('rankings/equal_weight_goalie_rankings_2026.csv')
 
 # Filter and analyze
 top_scorers = skaters.nlargest(20, 'points')
@@ -281,7 +298,7 @@ This project is for personal use. Please respect the terms of service of Hockey-
 
 ## 🏆 Draft Tips
 
-Based on the analysis of real NHL data (2022-2025, cleaned):
+Based on the analysis of real NHL data (2023-2026, cleaned):
 
 1. **Use Equal Weight Rankings** - Perfect for most fantasy leagues
 2. **Draft Goalies Early** - Only 2 starting spots, so scarcity makes them valuable
