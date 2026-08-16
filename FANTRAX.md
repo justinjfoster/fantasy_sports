@@ -159,7 +159,64 @@ for rank in standings.ranks.values():
     print(rank)
 ```
 
+## Player pool, ADP and projections
+
+`getPlayerStats` is the most useful endpoint for drafting. It returns the whole
+player pool — about 7,500 players — already tailored to your league, so the
+stat columns *are* your scoring categories.
+
+```bash
+python scripts/fantrax_player_pool.py            # top 500
+python scripts/fantrax_player_pool.py --all      # everything
+```
+
+Writes `data/fantrax_player_pool.csv` with:
+
+| Column | Meaning |
+|---|---|
+| `rank` | Fantrax's overall player ranking |
+| `score` | Fantrax's value formula for **your** league settings |
+| `adp` | **Average draft position across all Fantrax leagues** (`-` if never drafted) |
+| `pct_drafted` | Share of leagues where the player was drafted |
+| `pct_rostered` | Share of leagues currently rostering the player |
+| `gp g a sog ppp hit blk fow` | Fantrax's **projections** for the coming season |
+
+The stat columns are read from the response header rather than hardcoded, so
+they follow your league settings if those change.
+
+Paginate with `pageNumber` and `maxResultsPerPage` (100 works; the default is
+20). Requests are spaced 1.5s apart.
+
+### The edge this exposes
+
+ADP is measured across *all* Fantrax leagues, most of which do not count
+faceoffs. Ours does. So face-off specialists are systematically available far
+later than their value in our format:
+
+```
+Jordan Staal        ADP 290.6   Fantrax rank 126   838 projected FOW
+Chandler Stephenson ADP 290.5   Fantrax rank 158   738 projected FOW
+Elias Lindholm      ADP 239.1   Fantrax rank 102   692 projected FOW
+```
+
+The mirror image is hyped young wingers and defensemen with no face-off
+contribution, drafted 150-250 picks earlier than their rank in this format.
+
 ## Discovering more endpoints
+
+Confirmed working on our league (August 2026):
+
+| Method | Returns |
+|---|---|
+| `getPlayerStats` | Player pool with ADP and projections — see above |
+| `getDraftResults` | `draftPicksOrdered`, `fantasyTeamsOrdered`, draft type |
+| `getTeamRosterInfo` | A team's roster and settings |
+| `getFantasyLeagueInfo` | `fantasySettings`, `positionMap` |
+| `getStandings` | Standings and records |
+
+Returned an error on our league: `getPlayers`, `getAdp`, `getDraftRankings`,
+`getPlayerPool`, `getProjections`, `getRefObject`, `getDraftPicks`. ADP does
+not have its own method — it is a column of `getPlayerStats`.
 
 The wrapper only implements a handful of methods:
 

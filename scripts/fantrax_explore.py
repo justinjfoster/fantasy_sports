@@ -63,13 +63,29 @@ def show_roster(league, teams):
     print(f"ROSTER - {teams[0]}")
     print("=" * 66)
     try:
-        roster = league.roster_info(teams[0].team_id)
+        # Team exposes .roster directly; team_roster() is the League-level form
+        roster = teams[0].roster()
     except Exception as e:
         print(f"  unavailable: {type(e).__name__}: {e}")
         return
-    for row in getattr(roster, "rows", []):
-        if getattr(row, "player", None):
-            print(f"  {row.pos_id:<6} {row.player.name:<28} {row.player.team_name}")
+
+    rows = getattr(roster, "rows", [])
+    if not rows:
+        print("  (no roster rows returned)")
+        return
+
+    filled = 0
+    for row in rows:
+        player = getattr(row, "player", None)
+        slot = str(getattr(row, "position", "") or "")
+        if player:
+            filled += 1
+            print(f"  {slot:<10} {player.name:<28} {getattr(player, 'team_name', '')}")
+        else:
+            print(f"  {slot:<10} (empty)")
+
+    if not filled:
+        print(f"\n  {len(rows)} roster slots, all empty - the draft has not happened yet.")
 
 
 def show_transactions(league):

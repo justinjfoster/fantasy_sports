@@ -54,3 +54,8 @@ fantraxloggedin.cookie
 # OS
 .DS_Store
 Thumbs.db
+
+# Fantrax player pool: their proprietary projections and aggregate ADP.
+# Regenerate with scripts/fantrax_player_pool.py rather than redistributing it
+# from this public repo.
+data/fantrax_player_pool.csv
