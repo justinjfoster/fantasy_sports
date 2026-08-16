@@ -29,6 +29,27 @@ COOKIE_PATH = os.path.join(REPO_ROOT, 'fantraxloggedin.cookie')
 
 LOGIN_URL = 'https://www.fantrax.com/login'
 
+# Your league id lives outside the repo, since this repository is public.
+# Either set FANTRAX_LEAGUE_ID in your environment, or drop the id into this
+# one-line file. Both are gitignored.
+LEAGUE_ID_FILE = os.path.join(REPO_ROOT, '.fantrax_league')
+
+
+def default_league_id() -> Optional[str]:
+    """Your league id, from the environment or the local .fantrax_league file."""
+    from_env = os.environ.get('FANTRAX_LEAGUE_ID')
+    if from_env:
+        return from_env.strip()
+
+    if os.path.exists(LEAGUE_ID_FILE):
+        with open(LEAGUE_ID_FILE, encoding='utf-8') as handle:
+            for line in handle:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    return line
+
+    return None
+
 
 class FantraxAuthError(RuntimeError):
     """Raised when there is no usable cookie file."""

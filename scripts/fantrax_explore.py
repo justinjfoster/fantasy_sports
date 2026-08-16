@@ -22,7 +22,7 @@ try:
 except (AttributeError, OSError):
     pass
 
-from src.fantrax import FantraxAuthError, connect, load_session
+from src.fantrax import FantraxAuthError, connect, default_league_id, load_session
 
 ENDPOINT = "https://www.fantrax.com/fxpa/req"
 
@@ -104,13 +104,15 @@ def raw_call(league_id, method, **data):
 
 
 def main():
-    if len(sys.argv) < 2:
+    league_id = sys.argv[1] if len(sys.argv) > 1 else default_league_id()
+
+    if not league_id:
         print(__doc__)
-        print("Your league id is in the league URL:")
+        print("No league id given, and none configured.")
+        print("Either pass it as an argument, set FANTRAX_LEAGUE_ID, or put it")
+        print("in a .fantrax_league file. Find it in your league URL:")
         print("  https://www.fantrax.com/fantasy/league/<league_id>/home")
         sys.exit(1)
-
-    league_id = sys.argv[1]
 
     try:
         league = connect(league_id)

@@ -155,7 +155,7 @@ authentication, known methods and caveats are in **[FANTRAX.md](FANTRAX.md)**.
 
 ```bash
 python scripts/fantrax_login.py               # once, saves session cookies
-python scripts/fantrax_explore.py <league_id> # teams, standings, rosters
+python scripts/fantrax_explore.py            # teams, standings, rosters
 ```
 
 ## 🎯 League Settings Supported

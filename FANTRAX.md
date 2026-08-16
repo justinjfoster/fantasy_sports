@@ -41,7 +41,7 @@ We use [`fantraxapi`](https://github.com/meisnate12/FantraxAPI), an unofficial
 wrapper. Worth knowing: its author built and tested it against an **NHL**
 league, so hockey is the best-supported case.
 
-### 2. Find your league ID
+### 2. Configure your league ID
 
 Open your league on Fantrax and look at the URL:
 
@@ -50,6 +50,21 @@ https://www.fantrax.com/fantasy/league/abcd1234efgh5678/home
                                        ^^^^^^^^^^^^^^^^
                                        this is your league ID
 ```
+
+**This repository is public**, so the league ID is kept out of it. Store it in
+either place — both are gitignored:
+
+```bash
+# a one-line file in the repo root
+echo abcd1234efgh5678 > .fantrax_league
+
+# or an environment variable
+export FANTRAX_LEAGUE_ID=abcd1234efgh5678     # macOS
+setx FANTRAX_LEAGUE_ID abcd1234efgh5678       # Windows
+```
+
+With either set, the scripts take no arguments. You can still pass a league ID
+explicitly to override it.
 
 ### 3. Log in once
 
@@ -71,7 +86,7 @@ the other machine — just run the login again there.
 ### 4. Look around
 
 ```bash
-python scripts/fantrax_explore.py <your_league_id>
+python scripts/fantrax_explore.py
 ```
 
 Prints teams, standings, a roster, and recent transactions.

@@ -45,6 +45,9 @@ databases/*.sqlite3
 *.cookie
 fantraxloggedin.cookie
 
+# Local Fantrax league id. This repository is public, so the id stays out of it.
+.fantrax_league
+
 # Logs
 *.log
 
