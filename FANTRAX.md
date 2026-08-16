@@ -28,6 +28,37 @@ Confirmed working as of August 2026: the endpoint is live and returns
 structured JSON, including a clear `NOT_MEMBER_OF_LEAGUE` error when you are
 not authenticated for the league you asked for.
 
+## Running these commands on Windows
+
+Two PowerShell quirks bite here. Both are avoided by calling the virtual
+environment's Python directly:
+
+```powershell
+cd C:\Users\Justi\Documents\coding\fantasy_sports
+.\.venv\Scripts\python.exe scripts\fantrax_login.py
+```
+
+- **Use the `.\` prefix.** Typing `.venv\Scripts\python.exe` fails with
+  `The module '.venv' could not be loaded`, because PowerShell reads a leading
+  bare `.` as the dot-sourcing operator rather than as part of a path.
+- **Do not bother with `Activate.ps1`.** On a default Windows install the
+  execution policy is `Restricted`, so activating fails with
+  `running scripts is disabled on this system`. Calling `python.exe` directly
+  needs no policy change at all.
+
+  If you would rather activate anyway, this permits locally-created scripts for
+  your user only, which is the usual recommendation:
+
+  ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+  ```
+
+  Note that `Get-ExecutionPolicy` alone can be misleading — it reports the
+  current *process* scope. Use `Get-ExecutionPolicy -List` to see what is
+  actually set for `CurrentUser` and `LocalMachine`.
+
+On macOS none of this applies; `source .venv/bin/activate` works normally.
+
 ## Setup
 
 ### 1. Install
