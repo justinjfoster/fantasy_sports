@@ -184,6 +184,30 @@ Writes `data/fantrax_player_pool.csv` with:
 The stat columns are read from the response header rather than hardcoded, so
 they follow your league settings if those change.
 
+### These are projections, not past performance
+
+The default view is `PROJECTION_0_31n_SEASON` ("Projected - Season"), so every
+stat column is Fantrax's **forecast for the coming season**, and `rank` is
+derived from that forecast rather than from anything a player has done.
+
+This has a counterintuitive consequence: players who have never appeared in an
+NHL game still get a rank. Gavin McKenna (18, rookie, TOR) carries rank 326 on
+a projected 19G/23A line, while returning nothing at all under the 2025-26
+actual-season view. Treat rookie projections as the softest numbers in the
+file.
+
+There is no college or junior data anywhere in the feed. Every available stat
+view is an NHL season, 2026-27 back to 2007-08, regular season and playoffs.
+
+To request actual stats instead of projections, pass `seasonOrProjection`:
+
+```python
+raw_call(league_id, "getPlayerStats", seasonOrProjection="SEASON_31l_YEAR_TO_DATE")
+```
+
+The full list of view codes is in the `seasonOrProjections` key of any
+`getPlayerStats` response.
+
 Paginate with `pageNumber` and `maxResultsPerPage` (100 works; the default is
 20). Requests are spaced 1.5s apart.
 
