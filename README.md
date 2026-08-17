@@ -2,6 +2,11 @@
 
 A comprehensive Python tool to help you analyze NHL player statistics and make informed decisions for your fantasy hockey draft. This tool collects real NHL data from multiple seasons and provides detailed analysis tailored to your league's specific scoring categories.
 
+> **Picking this up after a break, or on the other machine?** Start with
+> **[CONTEXT.md](CONTEXT.md)** — where the project stands, decisions made and
+> why, open questions, and what to build next. This README covers usage;
+> CONTEXT.md covers state.
+
 ## 🏒 Features
 
 - **Real Data Collection**: Scrapes NHL player statistics from Hockey-Reference.com
