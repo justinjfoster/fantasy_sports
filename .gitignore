@@ -64,3 +64,6 @@ data/fantrax_player_pool.csv
 # so it stays out of the public repo too. Regenerate with
 # scripts/draft_board.py, which needs a live login.
 data/draft_board.csv
+
+# Draft-night progress; personal and regenerated each draft
+data/draft_state.json

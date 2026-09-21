@@ -2,9 +2,10 @@
 """
 Slot arithmetic for the draft board, checked against rosters we invent.
 
-Rosters are empty until draft night, so the one case that matters most - the
-board must stop offering goalies once both goalie slots are full - cannot be
-observed from live data until it is too late to fix. These simulate it.
+Rosters are empty until draft night, so the cases that matter most - the board
+must stop offering goalies once both goalie slots are full, and must not let
+the bench quietly reopen them - cannot be observed from live data until it is
+too late to fix. These simulate them.
 
     python scripts/test_roster_slots.py
 """
@@ -14,53 +15,58 @@ import sys
 
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from draft_board import MY_TEAM, SLOTS, UTIL, open_slots
+from src.valuation import BENCH, SLOTS, UTIL, open_slots, wanted_positions
 
 
-def roster(*players):
-    return pd.DataFrame([{'team': MY_TEAM, 'name': n, 'position': p}
-                         for n, p in players])
+def roster(*positions):
+    return pd.DataFrame([{'position': p} for p in positions])
 
 
-SUZ = ('Nick Suzuki', 'C')
+SLOT_CASES = [
+    ("empty", roster(),
+     {'C': 2, 'LW': 2, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 2, 'BENCH': 4}),
 
-CASES = [
-    ("keepers only", roster(SUZ),
-     {'C': 1, 'LW': 2, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 2}),
+    ("one keeper at C", roster('C'),
+     {'C': 1, 'LW': 2, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 2, 'BENCH': 4}),
 
-    ("one goalie", roster(SUZ, ('Vasilevskiy', 'G')),
-     {'C': 1, 'LW': 2, 'RW': 2, 'D': 3, 'G': 1, 'UTIL': 2}),
+    ("both goalie slots full", roster('C', 'G', 'G'),
+     {'C': 1, 'LW': 2, 'RW': 2, 'D': 3, 'G': 0, 'UTIL': 2, 'BENCH': 4}),
 
-    ("both goalie slots full", roster(SUZ, ('Vasilevskiy', 'G'), ('Thompson', 'G')),
-     {'C': 1, 'LW': 2, 'RW': 2, 'D': 3, 'G': 0, 'UTIL': 2}),
+    # A third goalie has no starting slot and utility is skaters only, so he
+    # falls to the bench. Nothing may go negative, nothing may reopen.
+    ("a third goalie goes to the bench", roster('C', 'G', 'G', 'G'),
+     {'C': 1, 'LW': 2, 'RW': 2, 'D': 3, 'G': 0, 'UTIL': 2, 'BENCH': 3}),
 
-    # A third goalie cannot play anywhere: G is closed and utility is skaters
-    # only, so nothing may go negative and no slot may reopen.
-    ("a third goalie fits nowhere",
-     roster(SUZ, ('Vasilevskiy', 'G'), ('Thompson', 'G'), ('Sorokin', 'G')),
-     {'C': 1, 'LW': 2, 'RW': 2, 'D': 3, 'G': 0, 'UTIL': 2}),
-
-    ("centres fill up", roster(SUZ, ('MacKinnon', 'C')),
-     {'C': 0, 'LW': 2, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 2}),
+    ("centres fill up", roster('C', 'C'),
+     {'C': 0, 'LW': 2, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 2, 'BENCH': 4}),
 
     # Dual-eligible players must land where there is room, not where they are
     # listed first.
-    ("C,LW spills to LW once C is full",
-     roster(SUZ, ('MacKinnon', 'C'), ('Draisaitl', 'C,LW')),
-     {'C': 0, 'LW': 1, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 2}),
+    ("C,LW spills to LW once C is full", roster('C', 'C', 'C,LW'),
+     {'C': 0, 'LW': 1, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 2, 'BENCH': 4}),
 
-    ("skaters overflow into utility",
-     roster(SUZ, ('MacKinnon', 'C'), ('Celebrini', 'C'), ('Eichel', 'C')),
-     {'C': 0, 'LW': 2, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 0}),
+    ("skaters overflow into utility", roster('C', 'C', 'C', 'C'),
+     {'C': 0, 'LW': 2, 'RW': 2, 'D': 3, 'G': 2, 'UTIL': 0, 'BENCH': 4}),
+]
+
+# The bench is open for almost the whole draft. If it counted toward what we
+# recommend, every position would be wanted at every pick and the roster
+# constraint would mean nothing.
+WANTED_CASES = [
+    ("goalies offered while G is open", roster('C'), True),
+    ("goalies NOT offered once G is full", roster('C', 'G', 'G'), False),
+    ("goalies offered again once every starter is filled",
+     roster('C', 'C', 'LW', 'LW', 'RW', 'RW', 'D', 'D', 'D', 'G', 'G', 'C', 'LW'),
+     True),
 ]
 
 
 def main():
     failed = 0
-    for label, players, expected in CASES:
+
+    for label, players, expected in SLOT_CASES:
         actual = open_slots(players)
         ok = actual == expected
         failed += not ok
@@ -69,13 +75,16 @@ def main():
             print(f"       expected {expected}")
             print(f"       actual   {actual}")
 
-    total = sum(SLOTS.values()) + UTIL
-    empty = open_slots(roster())
-    if sum(empty.values()) != total:
-        print(f"FAIL an empty roster should have all {total} starting slots open")
-        failed += 1
+    for label, players, goalie_expected in WANTED_CASES:
+        wanted = wanted_positions(open_slots(players))
+        ok = ('G' in wanted) == goalie_expected
+        failed += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} {label}")
+        if not ok:
+            print(f"       wanted {sorted(wanted)}, G expected {goalie_expected}")
 
-    print(f"\n{len(CASES) + 1 - failed}/{len(CASES) + 1} passed")
+    total = len(SLOT_CASES) + len(WANTED_CASES)
+    print(f"\n{total - failed}/{total} passed")
     return 1 if failed else 0
 
 
