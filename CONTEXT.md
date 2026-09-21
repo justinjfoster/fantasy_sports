@@ -1,7 +1,7 @@
 # Project Context
 
 Working state of this project, written to pick things up cleanly in a later
-session or on the other machine. Last updated **2026-09-10**.
+session or on the other machine. Last updated **2026-09-21**.
 
 `README.md` explains how to *use* the tool. This file explains *where things
 stand and why*, including decisions that are not obvious from the code.
@@ -33,7 +33,16 @@ league state pulled from Fantrax.
 
 **Pick trades:** Justin's picks are not the standard snake slots. He has **no
 5th-round pick** and holds **two 13th-rounders** (13.6 and 13.8). Every team
-still holds 17 picks in total.
+holds 17 picks in total, before keepers consume any.
+
+**Justin's 16 usable overall picks** (R2.5/pick 17 is spent on Suzuki):
+
+```
+8, 32, 41, 65, 80, 89, 104, 113, 128, 137, 150, 152, 161, 176, 185, 200
+```
+
+Read them live rather than trusting this list — `getDraftResults` marks a
+consumed pick by attaching a `scorerId` to it.
 
 ### Keeper rules
 
@@ -46,11 +55,18 @@ keeper is valued purely on coming-season production.
 - **A player kept last season cannot be kept again.**
 - **1st-round picks cannot be kept.**
 - **Only one player drafted in rounds 1-3 may be kept**, and per Justin this
-  is exclusive with keeping others. *This rule as stated does not match the
-  draft sheet* — the other candidates were drafted in rounds 5 and 6, not 1-3
-  — so confirm the exact wording before acting on it.
-- The cap appears to be **3 keepers** (no team declared more), inferred rather
-  than read from a setting.
+  is exclusive with keeping others.
+- **The cap is 3 keepers.** Confirmed 2026-09-21 once all 12 teams declared:
+  nine kept three, none kept more.
+
+**Settled: Justin kept Nick Suzuki only**, registered at R2.5 (overall pick
+17). The analysis below backed this — keeping exactly one scored highest —
+and the deadline forced it before the roster-aware work was done.
+
+**This is the season's structural edge.** A keeper consumes a pick, so the
+nine teams that kept three draft 14 players while Justin drafts **16**. Two
+extra swings in a draft where ADP is badly mispriced against this league's
+categories.
 
 Read the league's declared keepers straight from the API: in `getDraftResults`,
 a pick carrying a `scorerId` is a keeper, and the round it sits in is its cost.
@@ -160,9 +176,68 @@ him 1st. The agreed fix is **not** to switch to z-score, which over-corrects on
 right-skewed categories like hits and faceoffs, but to add a **magnitude
 boost**: score each category as a winsorized z-score (clipped at ±3) mapped
 through the normal CDF back onto 0-100, then blend it with the ordinal
-percentile on a tunable weight. `scripts/goalie_rankings_v2.py` already
-implements exactly this (`--boost`, 0 = ordinal, 1 = fully magnitude-aware).
-**The skater side has not been rebuilt this way yet** — that is the next job.
+percentile on a tunable weight.
+
+**Both sides now implement this** — `scripts/skater_rankings_v2.py` (built
+2026-09-21) and `scripts/goalie_rankings_v2.py`, each with `--boost`
+(0 = ordinal, 1 = fully magnitude-aware, default 0.5) and `--min-games`.
+
+**What the boost actually did, and its ceiling.** McDavid moves from 22nd to
+16th across the full boost range:
+
+| boost | 0 | 0.25 | 0.5 | 0.75 | 1.0 |
+|---|---|---|---|---|---|
+| McDavid | 22 | 20 | 19 | 18 | 16 |
+
+He cannot climb further at any setting, and the reason is worth not
+rediscovering: **both scales cap at 100 per category.** His 48G / 90A /
+306 SOG earns nothing beyond winning those categories, while 40 hits and 30
+blocks stay near the floor.
+
+That ceiling is **arguably correct for head-to-head categories**: a category
+won 90-40 scores exactly what one won 45-44 does, so production beyond
+"clearly winning" is genuinely wasted. The boost therefore redistributes
+within the range rather than rewarding dominance without limit. If a future
+session wants dominance to pay without bound, that is a deliberate departure
+from how the league actually scores, not a bug to fix.
+
+Recommended setting: **0.5**.
+
+### The combined draft board
+
+`scripts/draft_board.py` — built 2026-09-21, and the thing to actually use on
+draft day. It joins the three signals this file has insisted on keeping
+separate, and the disagreements between them are the product:
+
+- **ours** — what a player did last season, scored in this league's exact
+  categories, from the v2 ranking files
+- **fantrax** — Fantrax's projection for the coming season, already tailored
+  to the league's scoring
+- **adp** — when he actually goes, across all Fantrax leagues
+
+It removes every declared keeper (read live from `getDraftResults`), sets
+**replacement = the 205th best available** (12 teams × 17 roster spots), and
+reports `vor` (value over replacement) beside `edge` (`adp − rank`, so
+positive means he falls later than he rates and you can wait on him).
+
+```powershell
+.\.venv\Scripts\python.exe scripts\draft_board.py
+.\.venv\Scripts\python.exe scripts\draft_board.py --pick 32   # who lasts to your pick
+.\.venv\Scripts\python.exe scripts\draft_board.py --pos G
+```
+
+Writes `data/draft_board.csv`, which is **gitignored** — it carries the same
+proprietary Fantrax projections the player pool does.
+
+**Two join traps it handles, both of which bit first:**
+
+1. Accented names, as documented above.
+2. **A name can belong to two different real players.** Vancouver has an Elias
+   Pettersson who is a centre and an Elias Pettersson who is a defenceman; the
+   rankings separate them by 450 places. A name-only join handed the
+   defenceman the centre's value and floated him onto the board as a bargain.
+   Duplicated names are now matched on **position** as well. Any future join
+   against this data needs the same care.
 
 ### Fantrax
 
@@ -191,9 +266,31 @@ See **[FANTRAX.md](FANTRAX.md)** for the full walkthrough. Summary:
 
 ---
 
-## The main finding so far
+## The main findings
 
-**Face-off specialists are systematically underdrafted in this league.**
+Both are the same mechanism: **Fantrax's ADP is averaged across all their
+leagues, and this league's categories are not the Fantrax-wide norm.** Where
+the category set diverges, the market misprices, and that gap is the edge.
+
+### 1. Goalies are the biggest mispricing (found 2026-09-21)
+
+**Four of the league's eleven categories are goalie categories** — W, GAA,
+SV, SV% — but ADP averages across leagues that weight goalies far less. From
+the 2026-09-21 board:
+
+| Goalie | Fantrax rank | ADP | Gap |
+|---|---|---|---|
+| Andrei Vasilevskiy | 1 | 53 | +52 |
+| Logan Thompson | 7 | 77 | +70 |
+| Igor Shesterkin | 16 | 97 | +81 |
+| Karel Vejmelka | 9 | 108 | +99 |
+| Dustin Wolf | 22 | 193 | **+171** |
+
+Seven goalies were kept, so supply is thinner than the raw pool suggests.
+Note the constraint the board does not enforce: **only 2 goalies start**, so
+value stacking beyond two is wasted.
+
+### 2. Face-off specialists are systematically underdrafted
 
 Fantrax's ADP is averaged across all their leagues, most of which do not count
 faceoffs. Ours does. From the 2026-08-16 pull:
@@ -211,6 +308,10 @@ young wingers and defensemen projected for **zero** faceoff wins: Demidov
 
 Our own percentile rankings independently reach the same conclusion from
 different data: face-off volume dominates them.
+
+The mirror of both findings: players whose value sits in categories this
+league does **not** count, or who are hyped on name alone, go far earlier
+than they rate here.
 
 ---
 
@@ -252,21 +353,21 @@ Three things are deliberately kept out of it, all gitignored:
 
 ## Known broken / not done
 
+- **The draft board is greedy on value and ignores roster construction.** It
+  ranks best-available and does not know the roster is 2C / 2LW / 2RW / 3D /
+  2 UTIL / 2G. Taking its top three straight would stack three goalies into
+  two starting slots. **This is the next job.**
 - **`analyze_your_league.py` does not run.** It reads a SQLite database built by
   `archive/sample_data.py` that was never committed (`databases/` is
   gitignored). It sits on an abandoned SQLite code path, unrelated to the
   scraper work.
 - **2022 was not backfilled.** Data covers 2023-2026.
-- **No combined draft board yet.** This is the obvious next build: join our
-  rankings, Fantrax's projected rank/score, and ADP into one table, so agreement
-  between the two independent sources signals confidence and divergence flags
-  players worth a look — sorted by when each will actually be available.
 - **Rosters are empty** until the draft, so roster-aware filtering (rank only
   players not already taken) cannot be tested yet.
-- **`scripts/fantrax_player_pool.py` silently drops all goalies.** See the
-  Fantrax section above for the one-key fix.
-- **The skater rankings have not been rebuilt with the magnitude boost.**
-  Only the goalie script implements it.
+- The first-generation scripts (`equal_weight_rankings.py`,
+  `equal_weight_goalie_rankings.py`) are superseded by the v2 pair for
+  decisions, but are left in place — they are what the older rankings files
+  in `rankings/` were built from.
 
 ---
 
@@ -299,15 +400,40 @@ the shape of this, which is the main reason to trust it.
 
 ---
 
+## Picking this up on the other machine
+
+The repo carries the code and the rankings, but **three files are gitignored
+and will not travel.** On a fresh clone or pull:
+
+```bash
+# 1. the session cookie is per-machine and must be re-created
+python scripts/fantrax_login.py
+
+# 2. the league id is not in the public repo
+echo "<league id from the Fantrax URL>" > .fantrax_league
+#    or set FANTRAX_LEAGUE_ID in the environment
+
+# 3. regenerate the two derived CSVs (both need a live login)
+python scripts/fantrax_player_pool.py --limit 600
+python scripts/draft_board.py
+```
+
+The Hockey-Reference data (`data/skater_data_2023_2026.csv`,
+`data/goalie_data_2023_2026.csv`) and the `rankings/` files **are** committed,
+so no re-scrape is needed. On macOS `source .venv/bin/activate` works
+normally; the Windows notes in Environment do not apply.
+
+---
+
 ## Next steps
 
-1. **Rebuild the skater rankings with the magnitude boost** (mirror
-   `goalie_rankings_v2.py`). Everything else depends on this being settled.
-2. **Fix the goalie omission** in `scripts/fantrax_player_pool.py`.
-3. **Build the combined draft board** — our rankings, Fantrax's projected
-   rank/score, and ADP in one table, with the league's declared keepers removed
-   and sorted by when each player will actually be available.
-4. Re-pull the Fantrax pool in the last days before the draft; ADP moves.
-5. Confirm with the commissioner: the exact rounds-1-3 keeper rule, the keeper
-   cap, and whether a player whose cost-round Justin no longer owns (he has no
-   5th) can still be kept.
+1. **Make the draft board roster-aware.** It should respect 2C / 2LW / 2RW /
+   3D / 2 UTIL / 2G and stop recommending a third goalie. This is the one
+   thing standing between the board and being usable as-is on draft night.
+2. **Re-pull the pool in the last day or two before the draft.** ADP moves,
+   and it has already moved measurably between 2026-08-16 and 2026-09-21.
+3. Confirm with the commissioner: the exact wording of the rounds-1-3 keeper
+   rule, and whether the 2026-09-28 20:45 draft time is real or a Fantrax
+   default. (The keeper cap is now confirmed at 3 and needs no asking.)
+4. During the draft, re-run `draft_board.py` between picks — it reads keepers
+   and rosters live, so it reflects who is actually gone.
