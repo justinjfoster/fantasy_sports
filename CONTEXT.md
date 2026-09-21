@@ -252,12 +252,19 @@ See **[FANTRAX.md](FANTRAX.md)** for the full walkthrough. Summary:
   exact categories. There is no standalone ADP method.
 - Its stats are **projections, not past performance** — which is why players
   with no NHL history still carry a rank.
-- **`getPlayerStats` omits goalies unless you send a `positionOrGroup` key.**
-  The value is ignored — merely including the key switches the response from
-  skaters-only to the full pool. `scripts/fantrax_player_pool.py` does **not**
-  send it, so every pool CSV it has written is skaters-only. This is why Jakub
-  Dobes was missing from the first keeper analysis. Fix the script before
-  trusting the pool for anything involving goalies.
+- **`getPlayerStats` needs three calls to give you everyone *with* their
+  projections.** `positionOrGroup` takes an id from the response's own
+  `posOrGroupList`, and the value matters: an unrecognised one like `"ALL"`
+  returns the full pool with **no stat columns for anybody**, while
+  `HOCKEY_SKATING` and `POS_201` each return one group with its own
+  categories. Omitting the key gives skaters only — which is why Jakub Dobes
+  was missing from the first keeper analysis.
+- **`rank` is relative to the view.** Skater view gives the overall rank;
+  goalie view restarts at 1 and counts goalies only. Take `rank` from the
+  pool view and join categories on `scorer_id`. `score` is the one column
+  that is identical everywhere.
+- **The pool excludes kept players** by default (`ALL_AVAILABLE`). Pass
+  `statusOrTeamFilter="ALL"` to see them; `searchName` prices one player.
 - Other methods that answer real questions: `getDraftResults` (draft type,
   order, every pick, and the declared keepers), `getFantasyLeagueInfo`
   (`draftDate`, season bounds, roster positions). `getLeagueRules`,

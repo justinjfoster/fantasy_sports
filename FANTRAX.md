@@ -184,7 +184,7 @@ Writes `data/fantrax_player_pool.csv` with:
 The stat columns are read from the response header rather than hardcoded, so
 they follow your league settings if those change.
 
-### It omits goalies unless you ask for them
+### Getting the whole pool AND the projections takes three calls
 
 **`getPlayerStats` returns skaters only unless the request carries a
 `positionOrGroup` key.** There is no error, no empty column and no warning —
@@ -192,16 +192,54 @@ the goalies simply are not in the response. Every pool CSV written before
 2026-09-21 is skaters-only, which is how a goalie went missing from an entire
 keeper analysis.
 
-The *value* of the key is ignored. `"ALL"`, `"G"`, `"201"` and nonsense all
-behave identically; sending the key at all is what switches on the full pool.
+But the *value* of the key is not ignored, and getting it wrong costs you
+every projection in the file. `positionOrGroup` takes an id from the
+response's own `posOrGroupList`:
+
+| value | who is in the table | stat columns |
+|---|---|---|
+| unrecognised, e.g. `"ALL"`, `"G"`, `"201"` | everybody | **none at all** |
+| `HOCKEY_SKATING` (or omitted) | skaters only | GP G A SOG PPP Hit Blk FOW |
+| `POS_201` | goalies only | GP W GAA SV SV% |
+
+An unrecognised value silently drops the table to its nine leading columns.
+It looks like it worked — you get the full pool, every row present — and every
+projected stat for every player is gone. That is what `"ALL"` was doing
+from 2026-09-21 until this was fixed.
+
+So there is no single call that returns everyone with their categories.
+`scripts/fantrax_player_pool.py` makes all three and joins them on
+`scorer_id`.
+
+#### `rank` is relative to the view you asked for
+
+This is the trap underneath the fix. In the skater view `rank` is the
+**overall** rank (2, 3, 4, 13, ... with gaps where goalies sit). In the goalie
+view it **restarts at 1 and counts goalies only**. Concatenating the two views
+put 89 colliding rank values in one column and made every goalie look like a
+top-25 overall pick.
+
+`score` is the only column identical across all three views — a league-tailored
+0-100 scale. Deriving rank by sorting on it is close but drifts by a constant
+offset wherever coverage is incomplete, so take `rank` from the pool view and
+join the categories onto it.
+
+#### The pool hides players who are already kept
+
+The default status filter is `ALL_AVAILABLE`, so anyone on a fantasy roster is
+absent — 600 rows spanning ranks 1-632 means the 32 missing numbers are the
+league's keepers. Nick Suzuki cannot be looked up at all in the default view.
 
 ```python
-raw_call(league_id, "getPlayerStats", positionOrGroup="ALL",
-         pageNumber="1", maxResultsPerPage="100")
+raw_call(league_id, "getPlayerStats", positionOrGroup="HOCKEY_SKATING",
+         statusOrTeamFilter="ALL", searchName="Suzuki")
 ```
 
-`scripts/fantrax_player_pool.py` now sends it. If you write your own call
-against this endpoint, send it too.
+`statusOrTeamFilter` is the key (not `statusOrTeam`, which is accepted and
+ignored). `searchName` filters by name and is the quickest way to price a
+single player.
+
+
 
 ### These are projections, not past performance
 
