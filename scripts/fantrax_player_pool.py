@@ -60,6 +60,10 @@ def fetch_page(session, league_id, page):
         "leagueId": league_id,
         "pageNumber": str(page),
         "maxResultsPerPage": str(PAGE_SIZE),
+        # Without this key Fantrax returns skaters only, silently - no error,
+        # no empty column, the goalies simply are not there. The value is
+        # ignored; sending the key at all is what switches on the full pool.
+        "positionOrGroup": "ALL",
     }}]}
     response = session.post(
         ENDPOINT, params={"leagueId": league_id}, json=body, timeout=30

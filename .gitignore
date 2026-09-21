@@ -59,3 +59,8 @@ Thumbs.db
 # Regenerate with scripts/fantrax_player_pool.py rather than redistributing it
 # from this public repo.
 data/fantrax_player_pool.csv
+
+# The combined draft board is built from that same proprietary Fantrax data,
+# so it stays out of the public repo too. Regenerate with
+# scripts/draft_board.py, which needs a live login.
+data/draft_board.csv
