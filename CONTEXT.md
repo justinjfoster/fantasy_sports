@@ -215,16 +215,43 @@ separate, and the disagreements between them are the product:
   to the league's scoring
 - **adp** — when he actually goes, across all Fantrax leagues
 
-It removes every declared keeper (read live from `getDraftResults`), sets
-**replacement = the 205th best available** (12 teams × 17 roster spots), and
+It removes every declared keeper (read live from `getDraftResults`) and
 reports `vor` (value over replacement) beside `edge` (`adp − rank`, so
 positive means he falls later than he rates and you can wait on him).
+
+**Replacement is per position, not one number** (changed 2026-09-21). A single
+"205th best available" line treats a goalie and a centre as interchangeable,
+and they are not: the league starts exactly 24 goalies, so the 25th best
+goalie is free and every goalie above him is worth only the gap to that line.
+The board fills each position's league-wide starting slots from the top down —
+scarcest position first, so multi-position players land where they are needed —
+then the 24 utility slots from whichever skaters are left, and takes the best
+man still unclaimed at each position as that position's replacement. A player
+eligible at several positions is scored against whichever gives him the most.
+
+The levels this produces are far apart, which is the whole point:
+
+| | C | LW | RW | D | G |
+|---|---|---|---|---|---|
+| replacement | 66.2 | 66.3 | 66.3 | 57.7 | 51.1 |
+
+`--next` adds the roster constraint on top: it assigns everyone you already
+hold to a slot, then shows only players who fit something still open. Fill
+both goalie slots and goalies vanish from the recommendations entirely, which
+is the behaviour the old best-available board could not express.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\draft_board.py
 .\.venv\Scripts\python.exe scripts\draft_board.py --pick 32   # who lasts to your pick
 .\.venv\Scripts\python.exe scripts\draft_board.py --pos G
+.\.venv\Scripts\python.exe scripts\draft_board.py --next     # only what fits an open slot
 ```
+
+**Goalies still lead the board, and that is not the bug it looks like.** Only
+59 goalies clear the 25-game floor and 24 start, so 41% of the usable pool is
+rostered, against 8% of centres. The drop from best to replacement is 145
+points for goalies and 65 for skaters. Scarcity is real; what the board now
+prevents is *stacking* — a third goalie has nowhere to play.
 
 Writes `data/draft_board.csv`, which is **gitignored** — it carries the same
 proprietary Fantrax projections the player pool does.
@@ -360,17 +387,21 @@ Three things are deliberately kept out of it, all gitignored:
 
 ## Known broken / not done
 
-- **The draft board is greedy on value and ignores roster construction.** It
-  ranks best-available and does not know the roster is 2C / 2LW / 2RW / 3D /
-  2 UTIL / 2G. Taking its top three straight would stack three goalies into
-  two starting slots. **This is the next job.**
+- **The draft board's cross-position scale is a judgement call, not a result.**
+  Our skater score sums 7 categories, our goalie score 4, and the board divides
+  each by its category count to put both on 0-100. Summing instead would make a
+  skater's edge worth 7/4 more than it is now. It barely changes the ordering -
+  goalies lead on either scale, because only 59 goalies clear the 25-game floor
+  and 24 of them start - but the size of the gap is scale-dependent, so do not
+  read the VOR numbers as precise across positions.
 - **`analyze_your_league.py` does not run.** It reads a SQLite database built by
   `archive/sample_data.py` that was never committed (`databases/` is
   gitignored). It sits on an abandoned SQLite code path, unrelated to the
   scraper work.
 - **2022 was not backfilled.** Data covers 2023-2026.
-- **Rosters are empty** until the draft, so roster-aware filtering (rank only
-  players not already taken) cannot be tested yet.
+- **Rosters are empty** until the draft, so `--next` currently sees only your
+  keepers. The slot arithmetic itself is covered by simulated rosters, which is
+  how the "no third goalie" case is verified without waiting for draft night.
 - The first-generation scripts (`equal_weight_rankings.py`,
   `equal_weight_goalie_rankings.py`) are superseded by the v2 pair for
   decisions, but are left in place — they are what the older rankings files
@@ -434,9 +465,8 @@ normally; the Windows notes in Environment do not apply.
 
 ## Next steps
 
-1. **Make the draft board roster-aware.** It should respect 2C / 2LW / 2RW /
-   3D / 2 UTIL / 2G and stop recommending a third goalie. This is the one
-   thing standing between the board and being usable as-is on draft night.
+1. **Decide the cross-position scale** (see Known broken). Per-category or
+   summed changes how far ahead goalies look, though not that they lead.
 2. **Re-pull the pool in the last day or two before the draft.** ADP moves,
    and it has already moved measurably between 2026-08-16 and 2026-09-21.
 3. Confirm with the commissioner: the exact wording of the rounds-1-3 keeper
