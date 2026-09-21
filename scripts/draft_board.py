@@ -25,26 +25,8 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.fantrax import default_league_id
-from src.valuation import (BENCH, MY_TEAM, REPO, SLOTS, ascii_name, build,
+from src.valuation import (BENCH, MY_TEAM, REPO, SLOTS, build, keepers,
                            open_slots, wanted_positions)
-
-
-def keepers():
-    """Players already locked up, read live from the draft results."""
-    sys.path.insert(0, os.path.join(REPO, "scripts"))
-    from fantrax_explore import raw_call
-    data = raw_call(default_league_id(), "getDraftResults")["responses"][0]["data"]
-    by_id = {s["scorerId"]: s for s in data["scorers"]}
-    teams = {t["id"]: t["name"] for t in data["fantasyTeamsOrdered"]}
-    out = []
-    for p in data["draftPicksOrdered"]:
-        if p.get("scorerId"):
-            s = by_id.get(p["scorerId"], {})
-            out.append({"key": ascii_name(s.get("name", "")), "name": s.get("name"),
-                        "team": teams.get(p["teamId"]),
-                        "position": s.get("posShortNames", ""), "round": p["round"]})
-    return pd.DataFrame(out)
 
 
 def show(df, title, top):
@@ -55,8 +37,12 @@ def show(df, title, top):
         a = f"{r.adp:.0f}" if pd.notna(r.adp) else "  -"
         e = f"{r.edge:+.0f}" if pd.notna(r.edge) else "   -"
         flag = "*" if r.projection_only else " "
+        held = r.get("kept_by") if hasattr(r, "get") else None
+        tail = f"{str(r.team)}"
+        if isinstance(held, str) and held:
+            tail += f"   KEPT by {held}"
         print(f"{r.board_rank:>4}{r.value:>8.2f}{a:>7}{e:>6}  {r['name']:<23}{flag}"
-              f"{str(r.position):<8}{str(r.slot or '-'):<5}{str(r.team)}")
+              f"{str(r.position):<8}{str(r.slot or '-'):<5}{tail}")
 
 
 def main():
@@ -69,19 +55,28 @@ def main():
     ap.add_argument("--pos", help="filter to a position, e.g. C or G")
     ap.add_argument("--next", action="store_true",
                     help="what to take, given the slots you still have open")
+    ap.add_argument("--include-kept", action="store_true",
+                    help="keep the 32 kept players on the board, to see where "
+                         "they rank (they are not draftable)")
     ap.add_argument("--top", type=int, default=40)
     args = ap.parse_args()
 
     df, levels = build(weight=args.weight, goalie_weight=args.goalie_weight)
 
     kept = keepers()
-    df = df[~df.key.isin(set(kept.key))]
-
     mine = kept[kept.team == MY_TEAM]
     remaining = open_slots(mine)
 
-    print(f"{len(kept)} keepers removed | blend weight {args.weight} "
-          f"(0 = ours, 1 = Fantrax)")
+    # The pool now carries kept players so they can be priced, so they are
+    # removed here rather than by the endpoint.
+    if args.include_kept:
+        df["kept_by"] = df["key"].map(dict(zip(kept.key, kept.team)))
+        note = f"{len(kept)} keepers SHOWN (not draftable)"
+    else:
+        df = df[~df.key.isin(set(kept.key))]
+        note = f"{len(kept)} keepers removed"
+
+    print(f"{note} | blend weight {args.weight} (0 = ours, 1 = Fantrax)")
     print("replacement level by position:")
     print(f"    {'':<5}" + "".join(f"{p:>9}" for p in SLOTS))
     for label, key in (("ours", "ours"), ("fntx", "fantrax")):

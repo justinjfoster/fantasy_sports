@@ -19,7 +19,7 @@ import streamlit as st
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.valuation import (BENCH, MY_TEAM, SLOTS, TEAMS, UTIL, build,
-                           load_signals, open_slots, positions_of,
+                           keepers, load_signals, open_slots, positions_of,
                            wanted_positions)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -79,27 +79,20 @@ def board(weight, goalie_weight):
     return df, levels
 
 
-@st.cache_data(show_spinner="Reading your keepers from Fantrax...")
-def my_keepers():
-    """Whatever you already hold before a single pick is made."""
+@st.cache_data(show_spinner="Reading keepers from Fantrax...")
+def all_keepers():
+    """
+    Every player already locked up league-wide, not just yours.
+
+    The pool now contains kept players so they can be priced, so the board has
+    to remove other teams' keepers itself rather than letting the endpoint do
+    it. Yours go onto your roster; everyone else's just come off the board.
+    """
     try:
-        sys.path.insert(0, os.path.join(REPO, "scripts"))
-        from fantrax_explore import raw_call
-        from src.fantrax import default_league_id
-        from src.valuation import ascii_name
-        data = raw_call(default_league_id(), "getDraftResults")["responses"][0]["data"]
-        by_id = {s["scorerId"]: s for s in data["scorers"]}
-        teams = {t["id"]: t["name"] for t in data["fantasyTeamsOrdered"]}
-        out = []
-        for p in data["draftPicksOrdered"]:
-            if p.get("scorerId") and teams.get(p["teamId"]) == MY_TEAM:
-                s = by_id[p["scorerId"]]
-                out.append({"key": ascii_name(s["name"]), "name": s["name"],
-                            "position": s.get("posShortNames", "")})
-        return pd.DataFrame(out)
+        return keepers()
     except Exception as exc:                          # offline, cookie expired
-        st.sidebar.warning(f"Could not read keepers ({exc}). Add them by hand.")
-        return pd.DataFrame(columns=["key", "name", "position"])
+        st.sidebar.warning(f"Could not read keepers ({exc}). Mark them by hand.")
+        return pd.DataFrame(columns=["key", "name", "team", "position", "round"])
 
 
 # --------------------------------------------------------------- controls
@@ -116,18 +109,20 @@ goalie_weight = st.sidebar.slider(
 
 df, levels = board(weight, goalie_weight)
 
-keepers = my_keepers()
-for _, k in keepers.iterrows():
-    take(k.key, mine=True)
+kept = all_keepers()
+for _, k in kept.iterrows():
+    take(k.key, mine=(k.team == MY_TEAM))
 
 gone = set(st.session_state.gone)
 mine_keys = list(st.session_state.mine)
 
 pos_of = dict(zip(df.key, df.position))
-for _, k in keepers.iterrows():
-    pos_of.setdefault(k.key, k.position)
 name_of = dict(zip(df.key, df.name))
-for _, k in keepers.iterrows():
+rank_of = dict(zip(df.key, df.board_rank))
+value_of = dict(zip(df.key, df.value))
+adp_of = dict(zip(df.key, df.adp))
+for _, k in kept.iterrows():
+    pos_of.setdefault(k.key, k.position)
     name_of.setdefault(k.key, k["name"])
 
 roster = pd.DataFrame([{"key": k, "name": name_of.get(k, k),
@@ -140,12 +135,32 @@ available = df[~df.key.isin(gone)]
 st.sidebar.divider()
 st.sidebar.header("Your roster")
 if len(roster):
-    for _, p in roster.iterrows():
-        c1, c2 = st.sidebar.columns([4, 1])
-        c1.write(f"**{p['name']}**  ·  {p.position}")
+    total = 0.0
+    for n, p in enumerate(roster.itertuples(), start=1):
+        rk = rank_of.get(p.key)
+        val = value_of.get(p.key)
+        adp = adp_of.get(p.key)
+        if val is not None and val == val:
+            total += float(val)
+        c1, c2 = st.sidebar.columns([5, 1])
+        # Where he ranked on the board against where the market had him: a
+        # positive steal means you got him later than he rates.
+        steal = ""
+        if rk is not None and adp is not None and adp == adp:
+            steal = f" · steal {adp - rk:+.0f}"
+        head = f"**{p.name}**  ·  {p.position}"
+        body = (f"#{int(rk)}  ·  {float(val):+.2f}{steal}"
+                if rk is not None and val is not None and val == val
+                else "not on the board")
+        c1.markdown(f"{head}  \n<span style='opacity:.65;font-size:.85em'>"
+                    f"{n}. {body}</span>", unsafe_allow_html=True)
         if c2.button("✕", key=f"un_{p.key}", help="remove"):
             undo(p.key)
             st.rerun()
+    st.sidebar.metric("roster value", f"{total:+.2f}",
+                      help="Summed value-over-replacement of everyone you "
+                           "hold. Higher is better; it is only comparable "
+                           "against the same blend weight.")
 else:
     st.sidebar.caption("nothing yet")
 
@@ -162,8 +177,15 @@ if st.sidebar.button("Reset draft", type="secondary"):
 
 st.title("Draft Night")
 
-taken_count = len(gone)
-next_pick = next((p for p in MY_PICKS if p > taken_count), None)
+# Your next pick is simply the next unused entry in MY_PICKS. It cannot be
+# derived from how many players are off the board: the 32 keepers sit at
+# reserved slots scattered through the draft rather than consuming the first
+# 32 picks, so counting them as picks made jumps you straight to the 4th round
+# before a single selection has happened.
+keeper_keys = set(kept.key)
+my_drafted = [k for k in mine_keys if k not in keeper_keys]
+next_pick = (MY_PICKS[len(my_drafted)]
+             if len(my_drafted) < len(MY_PICKS) else None)
 
 cols = st.columns(8)
 order = ["C", "LW", "RW", "D", "G", "UTIL", "BENCH"]

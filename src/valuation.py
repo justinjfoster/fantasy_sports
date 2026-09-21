@@ -240,3 +240,33 @@ def wanted_positions(remaining):
     if wanted:
         return wanted
     return set(SLOTS) if remaining.get('BENCH') else set()
+
+def keepers():
+    """
+    Every player already locked up league-wide, read live from Fantrax.
+
+    Returns a frame with `key`, `name`, `team`, `position` and `round` - the
+    round a keeper sits in is what he cost his owner. The player pool now
+    includes these players so they can be priced, which means filtering them
+    is this project's job rather than the endpoint's.
+    """
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(REPO, "scripts"))
+    from fantrax_explore import raw_call
+
+    from src.fantrax import default_league_id
+
+    data = raw_call(default_league_id(), "getDraftResults")["responses"][0]["data"]
+    by_id = {s["scorerId"]: s for s in data["scorers"]}
+    teams = {t["id"]: t["name"] for t in data["fantasyTeamsOrdered"]}
+    out = []
+    for pick in data["draftPicksOrdered"]:
+        if pick.get("scorerId"):
+            s = by_id.get(pick["scorerId"], {})
+            out.append({"key": ascii_name(s.get("name", "")),
+                        "name": s.get("name", ""),
+                        "team": teams.get(pick["teamId"], ""),
+                        "position": s.get("posShortNames", ""),
+                        "round": pick["round"]})
+    return pd.DataFrame(out,
+                        columns=["key", "name", "team", "position", "round"])

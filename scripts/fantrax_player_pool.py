@@ -17,6 +17,8 @@ you cannot get from Hockey-Reference:
     score      Fantrax's own value formula for your league settings
 
 Getting both the full pool AND the projections takes three calls; see GROUPS.
+Players already kept or rostered ARE included - filtering them is the caller's
+job, so that a keeper can still be looked up and priced.
 """
 
 import argparse
@@ -92,6 +94,14 @@ def fetch_page(session, league_id, page, group):
         "pageNumber": str(page),
         "maxResultsPerPage": str(PAGE_SIZE),
         "positionOrGroup": group,
+        # Include players already on a roster. The endpoint defaults to
+        # ALL_AVAILABLE, which silently drops every keeper - 32 of them this
+        # season - so Nick Suzuki could not be priced from the file at all.
+        # The pool is the full picture and its consumers decide who is
+        # draftable; relying on the server-side filter hides players we need
+        # to look up. Note the key is statusOrTeamFilter: statusOrTeam is
+        # accepted and ignored.
+        "statusOrTeamFilter": "ALL",
     }}]}
     response = session.post(
         ENDPOINT, params={"leagueId": league_id}, json=body, timeout=30
