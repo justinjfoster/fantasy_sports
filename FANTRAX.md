@@ -184,6 +184,25 @@ Writes `data/fantrax_player_pool.csv` with:
 The stat columns are read from the response header rather than hardcoded, so
 they follow your league settings if those change.
 
+### It omits goalies unless you ask for them
+
+**`getPlayerStats` returns skaters only unless the request carries a
+`positionOrGroup` key.** There is no error, no empty column and no warning —
+the goalies simply are not in the response. Every pool CSV written before
+2026-09-21 is skaters-only, which is how a goalie went missing from an entire
+keeper analysis.
+
+The *value* of the key is ignored. `"ALL"`, `"G"`, `"201"` and nonsense all
+behave identically; sending the key at all is what switches on the full pool.
+
+```python
+raw_call(league_id, "getPlayerStats", positionOrGroup="ALL",
+         pageNumber="1", maxResultsPerPage="100")
+```
+
+`scripts/fantrax_player_pool.py` now sends it. If you write your own call
+against this endpoint, send it too.
+
 ### These are projections, not past performance
 
 The default view is `PROJECTION_0_31n_SEASON` ("Projected - Season"), so every
@@ -226,6 +245,21 @@ Elias Lindholm      ADP 239.1   Fantrax rank 102   692 projected FOW
 The mirror image is hyped young wingers and defensemen with no face-off
 contribution, drafted 150-250 picks earlier than their rank in this format.
 
+The same mechanism misprices **goalies** even harder, and it only became
+visible once the pool stopped omitting them. Four of this league's eleven
+categories are goalie categories, but ADP averages across leagues that weight
+goalies far less:
+
+```
+Andrei Vasilevskiy  ADP  53    Fantrax rank  1     gap  +52
+Logan Thompson      ADP  77    Fantrax rank  7     gap  +70
+Igor Shesterkin     ADP  97    Fantrax rank 16     gap  +81
+Dustin Wolf         ADP 193    Fantrax rank 22     gap +171
+```
+
+Only two goalies start, so this is worth exactly two picks — but those two
+can be taken far later than their value suggests.
+
 ## Discovering more endpoints
 
 Confirmed working on our league (August 2026):
@@ -233,10 +267,19 @@ Confirmed working on our league (August 2026):
 | Method | Returns |
 |---|---|
 | `getPlayerStats` | Player pool with ADP and projections — see above |
-| `getDraftResults` | `draftPicksOrdered`, `fantasyTeamsOrdered`, draft type |
+| `getDraftResults` | `draftPicksOrdered`, `fantasyTeamsOrdered`, draft type, **and the declared keepers** |
 | `getTeamRosterInfo` | A team's roster and settings |
 | `getFantasyLeagueInfo` | `fantasySettings`, `positionMap` |
 | `getStandings` | Standings and records |
+
+**Reading keepers out of `getDraftResults`.** There is no keeper endpoint —
+`getKeepers`, `getLeagueRules` and `getDraftSettings` all return
+`ERROR_INVALID_REQUEST`. But keepers are legible in their consequences: a
+pick carrying a `scorerId` is a declared keeper, and **the round that pick
+sits in is what keeping him cost**. Resolve the id against the response's
+`scorers` list for the player, and `teamId` against `fantasyTeamsOrdered` for
+the owner. `scripts/draft_board.py` does this to drop kept players from the
+board.
 
 Returned an error on our league: `getPlayers`, `getAdp`, `getDraftRankings`,
 `getPlayerPool`, `getProjections`, `getRefObject`, `getDraftPicks`. ADP does
