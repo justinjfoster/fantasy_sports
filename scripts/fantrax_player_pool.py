@@ -74,6 +74,15 @@ LEADING = ['rank', 'status', 'age', 'opponent', 'score', 'pct_drafted', 'adp',
 # absorbs ties at the boundary.
 COVERAGE_MARGIN = 1.1
 
+# Which stats the category columns hold. Left unset, the endpoint shows its
+# current default, and that default moves: it was the full-season projection
+# through 2026-09-21, then became the per-game projection (GP 3, fractional
+# goals) as the season approached - silently turning every category, the
+# rank, and therefore the --limit cut into week-one numbers. Bedard (ADP 52)
+# fell out of the file. The code carries a season id, so it is looked up by
+# timeframe rather than written down.
+TIMEFRAME = 'PROJECTED_SEASON'
+
 
 def as_number(value, default=float('inf')):
     """
@@ -88,7 +97,7 @@ def as_number(value, default=float('inf')):
         return default
 
 
-def fetch_page(session, league_id, page, group):
+def fetch_page(session, league_id, page, group, projection=None):
     body = {"msgs": [{"method": "getPlayerStats", "data": {
         "leagueId": league_id,
         "pageNumber": str(page),
@@ -103,6 +112,8 @@ def fetch_page(session, league_id, page, group):
         # accepted and ignored.
         "statusOrTeamFilter": "ALL",
     }}]}
+    if projection:
+        body["msgs"][0]["data"]["seasonOrProjection"] = projection
     response = session.post(
         ENDPOINT, params={"leagueId": league_id}, json=body, timeout=30
     )
@@ -142,9 +153,22 @@ def parse_rows(data, stat_cols):
         yield record
 
 
-def collect(session, league_id, group, wanted, label):
+def season_projection(session, league_id):
+    """The seasonOrProjection code for TIMEFRAME, read from the endpoint."""
+    options = fetch_page(session, league_id, 1, GROUPS['skater'])["seasonOrProjections"]
+    for option in options:
+        if option.get("timeframeTypeCode") == TIMEFRAME:
+            return option["code"]
+    raise RuntimeError(f"Fantrax offers no {TIMEFRAME} view; options: "
+                       + ", ".join(o.get("code", "?") for o in options))
+
+
+def collect(session, league_id, group, wanted, label, projection):
     """Pull `wanted` players from one view. wanted=None means everything."""
-    first = fetch_page(session, league_id, 1, group)
+    first = fetch_page(session, league_id, 1, group, projection)
+    shown_view = first["displayedSeasonOrProjection"]["timeframeTypeCode"]
+    if shown_view != TIMEFRAME:
+        raise RuntimeError(f"Asked Fantrax for {TIMEFRAME}, got {shown_view}")
     total = first["paginatedResultSet"]["totalNumResults"]
     wanted = total if wanted is None else min(wanted, total)
     pages = (wanted + PAGE_SIZE - 1) // PAGE_SIZE
@@ -158,7 +182,7 @@ def collect(session, league_id, group, wanted, label):
     for page in range(2, pages + 1):
         time.sleep(RATE_LIMIT_SECONDS)
         print(f"  page {page}/{pages}...")
-        records.extend(parse_rows(fetch_page(session, league_id, page, group), stat_cols))
+        records.extend(parse_rows(fetch_page(session, league_id, page, group, projection), stat_cols))
 
     return records[:wanted], stat_cols
 
@@ -191,7 +215,9 @@ def main():
     try:
         # The pool view decides who is in the file and carries the only
         # ranking that spans skaters and goalies on one scale.
-        records, _ = collect(session, league_id, POOL_GROUP, limit, "Pool")
+        projection = season_projection(session, league_id)
+        time.sleep(RATE_LIMIT_SECONDS)
+        records, _ = collect(session, league_id, POOL_GROUP, limit, "Pool", projection)
 
         def covering(predicate):
             if limit is None:
@@ -201,11 +227,11 @@ def main():
         time.sleep(RATE_LIMIT_SECONDS)
         skaters, skater_cols = collect(
             session, league_id, GROUPS['skater'],
-            covering(lambda r: not is_goalie(r)), "Skaters")
+            covering(lambda r: not is_goalie(r)), "Skaters", projection)
         time.sleep(RATE_LIMIT_SECONDS)
         goalies, goalie_cols = collect(
             session, league_id, GROUPS['goalie'],
-            covering(is_goalie), "Goalies")
+            covering(is_goalie), "Goalies", projection)
     except RuntimeError as e:
         print(e)
         sys.exit(1)
