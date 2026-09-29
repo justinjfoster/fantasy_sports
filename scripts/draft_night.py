@@ -222,6 +222,30 @@ def header_row():
         col.caption(label)
 
 
+# Filters every tab at once. Matches on eligibility rather than assigned
+# slot, so a C,LW player shows under LW even when the board slots him at C.
+# Nothing selected means no filter. With multi-position on, a player must be
+# eligible at two or more positions and at every one selected, so C + LW
+# gives exactly the C/LW players.
+f1, f2 = st.columns([3, 2], vertical_alignment="bottom")
+pos_filter = set(f1.segmented_control(
+    "position", ["C", "LW", "RW", "D", "G"], selection_mode="multi",
+    key="pos_filter") or [])
+multi_only = f2.toggle("multi-position only", key="multi_only",
+                       help="Eligible at 2+ positions, and at all of the "
+                            "positions selected")
+
+
+def passes(value):
+    held = positions_of(value)
+    if multi_only:
+        return len(held) >= 2 and pos_filter <= held
+    return not pos_filter or bool(held & pos_filter)
+
+
+if pos_filter or multi_only:
+    available = available[available.position.map(passes)]
+
 fits = available[available.slot.isin(wanted)]
 
 tab_rec, tab_all, tab_wait = st.tabs(
